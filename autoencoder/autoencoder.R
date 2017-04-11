@@ -1,13 +1,8 @@
-# Anomaly Detection Using Auto Encoder
+# Anomaly Detection Using Auto Encoder 
 # Source :https://github.com/sgrvinod/Anomaly-Detection-using-a-Deep-Learning-Auto-Encoder/blob/master/Anomaly_Detection_Faces.R
 
-
-#Read in required packages
-if(!require(pixmap)) install.packages("pixmap", dependencies=T)
+library(autoencoder)
 library(pixmap)
-if(!require(h2o)) install.packages("h2o", dependencies=T)
-library(h2o)
-
 path01='D:\\Users\\S37283\\Documents\\Outlier detection\\CroppedYale\\yaleB01'
 path02='D:\\Users\\S37283\\Documents\\Outlier detection\\CroppedYale\\yaleB02'
 pathoutlier='D:\\Users\\S37283\\Documents\\Outlier detection\\CroppedYaleNoisy\\yaleB02noisy'
@@ -23,21 +18,21 @@ test.names<-append(test.faces, test.notfaces)
 train.vectors<-list()
 test.vectors<-list()
 for (f in train.names){
-  x=read.pnm(file=paste(path01, f, sep="\\"))
+  x=read.pnm(file=paste(path01, f, sep="\\"),nrow=10,ncol=12)
   pixvec=as.vector(t(x@grey))
-  pixvec=as.integer(pixvec>mean(pixvec))
+  #pixvec=as.integer(pixvec>mean(pixvec))
   train.vectors[[f]]=pixvec
 }
 for (f in test.names[1:length(test.faces)]){
   x=read.pnm(file=paste(path02, f, sep="\\"))
   pixvec=as.vector(t(x@grey))
-  pixvec=as.integer(pixvec>mean(pixvec))
+  #pixvec=as.integer(pixvec>mean(pixvec))
   test.vectors[[f]]=pixvec
 }
 for (f in test.names[(length(test.faces)+1):length(test.names)]){
   x=read.pnm(file=paste(pathoutlier, f, sep="\\"))
   pixvec=as.vector(t(x@grey))
-  pixvec=as.integer(pixvec>mean(pixvec))
+  #pixvec=as.integer(pixvec>mean(pixvec))
   test.vectors[[f]]=pixvec
 }
 
@@ -45,11 +40,16 @@ for (f in test.names[(length(test.faces)+1):length(test.names)]){
 train<-as.data.frame(t(as.data.frame(train.vectors)))
 test<-as.data.frame(t(as.data.frame(test.vectors)))
 
+# Autoencoing
 
-#Initialize h2o cluster
-h2o.init(nthreads=-1, max_mem_size='4g')
-h2o.clusterInfo()
-
-
-
-
+N.hidden = 10 ## number of units in the hidden layer
+lambda = 0.0002 ## weight decay parameter
+beta = 6 ## weight of sparsity penalty term
+rho = 0.01 ## desired sparsity parameter
+epsilon <- 0.001
+nn<-autoencode(as.matrix(train),
+               N.hidden = N.hidden,
+               epsilon = epsilon,
+               lambda = lambda,
+               rho = rho,
+               beta = beta)
