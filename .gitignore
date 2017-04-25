@@ -6,3 +6,7 @@ CroppedYaleNoisy/
 autoencoder/autoencoder_h2o\.R
 
 *.h5
+
+*.gz
+
+*.pkl
