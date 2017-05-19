@@ -10,3 +10,5 @@ autoencoder/autoencoder_h2o\.R
 *.gz
 
 *.pkl
+
+tests/\.ipynb_checkpoints/
