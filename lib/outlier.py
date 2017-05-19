@@ -95,22 +95,21 @@ class OutlierMahalanobis(object):
 
 class R_pca:
 
-    def __init__(self, D, mu=None, lmbda=None):
-        self.D = D
-        self.S = np.zeros(self.D.shape)
-        self.Y = np.zeros(self.D.shape)
+    def __init__(self,D, mu=None, lmbda=None):
+        self.S = np.zeros(D.shape)
+        self.Y = np.zeros(D.shape)
 
         if mu:
             self.mu = mu
         else:
-            self.mu = np.prod(self.D.shape) / (4 * self.norm_p(self.D, 2))
+            self.mu = np.prod(D.shape) / (4 * self.norm_p(D, 2))
 
         self.mu_inv = 1 / self.mu
 
         if lmbda:
             self.lmbda = lmbda
         else:
-            self.lmbda = 1 / np.sqrt(np.max(self.D.shape))
+            self.lmbda = 1 / np.sqrt(np.max(D.shape))
 
     @staticmethod
     def norm_p(M, p):
@@ -124,25 +123,25 @@ class R_pca:
         U, S, V = np.linalg.svd(M, full_matrices=False)
         return np.dot(U, np.dot(np.diag(self.shrink(S, tau)), V))
 
-    def fit(self, tol=None, max_iter=1000, iter_print=100):
+    def fit(self,D,tol=None, max_iter=1000, iter_print=100):
         iter = 0
         err = np.Inf
         Sk = self.S
         Yk = self.Y
-        Lk = np.zeros(self.D.shape)
+        Lk = np.zeros(D.shape)
 
         if tol:
             _tol = tol
         else:
-            _tol = 1E-7 * self.norm_p(np.abs(self.D), 2)
+            _tol = 1E-7 * self.norm_p(np.abs(D), 2)
 
         while (err > _tol) and iter < max_iter:
             Lk = self.svd_threshold(
-                self.D - Sk + self.mu_inv * Yk, self.mu_inv)
+                D - Sk + self.mu_inv * Yk, self.mu_inv)
             Sk = self.shrink(
-                self.D - Lk + (self.mu_inv * Yk), self.mu_inv * self.lmbda)
-            Yk = Yk + self.mu * (self.D - Lk - Sk)
-            err = self.norm_p(np.abs(self.D - Lk - Sk), 2)
+                D - Lk + (self.mu_inv * Yk), self.mu_inv * self.lmbda)
+            Yk = Yk + self.mu * (D - Lk - Sk)
+            err = self.norm_p(np.abs(D - Lk - Sk), 2)
             iter += 1
             if (iter % iter_print) == 0 or iter == 1 or iter > max_iter or err <= _tol:
                 print('iteration: {0}, error: {1}'.format(iter, err))
@@ -163,9 +162,9 @@ class R_pca:
         plt.title('Norme 2 de $C_{0}$ pour chaque point',fontsize=15)
         plt.show()
 
-    def plot_fit(self, size=None, tol=0.1, axis_on=True):
+    def plot_fit(self,D, size=None, tol=0.1, axis_on=True):
 
-        n, d = self.D.shape
+        n, d = D.shape
 
         if size:
             nrows, ncols = size
@@ -174,8 +173,8 @@ class R_pca:
             nrows = int(sq)
             ncols = int(sq)
 
-        ymin = np.nanmin(self.D)
-        ymax = np.nanmax(self.D)
+        ymin = np.nanmin(D)
+        ymax = np.nanmax(D)
         print('ymin: {0}, ymax: {1}'.format(ymin, ymax))
 
         numplots = np.min([n, nrows * ncols])
@@ -188,7 +187,6 @@ class R_pca:
             plt.plot(self.L[n, :], 'b')
             if not axis_on:
                 plt.axis('off')
-
 
 class OutliersKmeans:
     ''' v.0.2 OutliersKmeans : Find outliers using Kmeans. Only for semi-supervised outlier detection'''
