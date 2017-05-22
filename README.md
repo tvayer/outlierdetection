@@ -1,6 +1,10 @@
 # Outlier detection
 
-The objective is to implement an outlier detection strategy.
+The objective is to implement some outlier detection strategies. More description in outlier-detection.pdf
+
+## PCA
+
+Using PCA + Robust PCA
 
 ## RNN
 
@@ -10,3 +14,4 @@ Principal Components Analysis.
 
 The work is based on the paper "Outlier Detection Using Replicator Neural Network" Simon Hawkins, Hongxing He, Graham Williams and Rohan Baxter 
 http://neuro.bstu.by/ai/To-dom/My_research/Papers-0/For-research/D-mining/Anomaly-D/KDD-cup-99/NN/dawak02.pdf
+
