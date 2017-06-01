@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.patches as mpatches
 import random
 import math
+import time
 import scipy.spatial.distance as distance
 from sklearn.covariance import MinCovDet as MCD
 import scipy.stats as stats
@@ -196,8 +197,6 @@ class OutliersKmeans:
         self.parallel=parallel
 
     def sleep(self,delay):
-        if __name__ != '__main__':
-            delay /= non_interactive_sleep_factor
         time.sleep(delay)
 
 
@@ -263,7 +262,7 @@ class OutliersKmeans:
         if self.parallel==True:
             p=Pool(4)
             g=lambda point:not(self.in_any_circle(point,centers,d))
-            result=p.map(g, outliers)
+            result=p.map(g, points)
 
         else:
             for point in points:
