@@ -13,6 +13,8 @@ import progressbar
 from pathos.multiprocessing import ProcessingPool as Pool
 from sklearn.cluster import KMeans
 from sklearn.base import BaseEstimator,TransformerMixin
+from sklearn.ensemble import IsolationForest
+
 
 
 class OutlierMahalanobis(TransformerMixin):
@@ -297,3 +299,32 @@ class OutliersKmeans(TransformerMixin):
             radius=d[k+1][1]
             incirclek.append(self.in_circle(point,center,radius))
         return np.any(incirclek)
+
+class OutliersIsolationForest(TransformerMixin):
+
+    def __init__(self,forest,showbar=False):
+        self.forest=forest
+        self.showbar=showbar
+
+    def get_params(self):
+        return {"forest": self.forest}
+
+    def set_params(self, **parameters):
+        for key,value in parameters.items() :
+            setattr(self,key,parameters[key])
+        return self
+
+
+    def fit(self,X,y=None):
+
+        self.forest.fit(X)
+
+        return self
+
+    def transform(self,X):
+
+        a=self.forest.predict(X)
+        self.iextreme_values=a==-1
+
+
+        return X[~self.iextreme_values]
