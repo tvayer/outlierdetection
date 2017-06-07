@@ -12,11 +12,12 @@ from numpy import linalg as LA
 import progressbar
 from pathos.multiprocessing import ProcessingPool as Pool
 from sklearn.cluster import KMeans
+from sklearn.base import BaseEstimator,TransformerMixin
 
 
-class OutlierMahalanobis(object):
+class OutlierMahalanobis(TransformerMixin):
 
-    def __init__(self, support_fraction = 0.95, verbose = True, chi2_percentile = 0.995,qqplot=True):
+    def __init__(self, support_fraction = 0.95, verbose = False, chi2_percentile = 0.995,qqplot=True):
         self.verbose = verbose
         self.support_fraction = support_fraction
         self.chi2 = stats.chi2
@@ -24,7 +25,15 @@ class OutlierMahalanobis(object):
         self.chi2_percentile = chi2_percentile
         self.qqplot=qqplot
 
-    def fit(self, X):
+    def get_params(self):
+        return {"support_fraction": self.support_fraction,"chi2_percentile":self.chi2_percentile}
+
+    def set_params(self, **parameters):
+        for key,value in parameters.items() :
+            setattr(self,key,parameters[key])
+        return self
+
+    def fit(self, X,y=None):
         """Prints some summary stats (if verbose is one) and returns the indices of what it consider to be extreme"""
         self.mcd.fit(X)
         d = np.array([distance.mahalanobis(p, self.mcd.location_, self.mcd.precision_ ) for p in X])
@@ -50,6 +59,10 @@ class OutlierMahalanobis(object):
                 plt.show()
 
         return self
+
+    def transform(self,X):
+
+        return X[~self.iextreme_values]
 
     def plot(self,log=False, sort = False ):
         """
@@ -94,23 +107,24 @@ class OutlierMahalanobis(object):
 
         plt.show()
 
-class R_pca:
+class R_pca(TransformerMixin):
 
-    def __init__(self,D, mu=None, lmbda=None):
-        self.S = np.zeros(D.shape)
-        self.Y = np.zeros(D.shape)
+    def __init__(self, mu=None, lmbda=None,tol=None,max_iter=1000,iter_print=100,nb_extreme=100):
+        self.tol=tol
+        self.max_iter=max_iter
+        self.iter_print=iter_print
+        self.mu=mu
+        self.lmbda=lmbda
+        self.nb_extreme=nb_extreme
 
-        if mu:
-            self.mu = mu
-        else:
-            self.mu = np.prod(D.shape) / (4 * self.norm_p(D, 2))
+    def get_params(self):
+        return {"mu": self.mu,"lmbda":self.lmbda,"tol":self.tol,"max_iter":self.max_iter}
 
-        self.mu_inv = 1 / self.mu
+    def set_params(self, **parameters):
+        for key,value in parameters.items() :
+            setattr(self,key,parameters[key])
+        return self
 
-        if lmbda:
-            self.lmbda = lmbda
-        else:
-            self.lmbda = 1 / np.sqrt(np.max(D.shape))
 
     @staticmethod
     def norm_p(M, p):
@@ -124,36 +138,51 @@ class R_pca:
         U, S, V = np.linalg.svd(M, full_matrices=False)
         return np.dot(U, np.dot(np.diag(self.shrink(S, tau)), V))
 
-    def fit(self,D,tol=None, max_iter=1000, iter_print=100):
+    def fit(self,X,y=None):
+        self.S = np.zeros(X.shape)
+        self.Y = np.zeros(X.shape)
+
+        if self.mu is None:
+            self.mu = np.prod(X.shape) / (4 * self.norm_p(X, 2))
+
+        self.mu_inv = 1 / self.mu
+
+        if self.lmbda is None:
+            self.lmbda = 1 / np.sqrt(np.max(X.shape))
+
+
         iter = 0
         err = np.Inf
         Sk = self.S
         Yk = self.Y
-        Lk = np.zeros(D.shape)
+        Lk = np.zeros(X.shape)
 
-        if tol:
-            _tol = tol
+        if self.tol:
+            _tol = self.tol
         else:
-            _tol = 1E-7 * self.norm_p(np.abs(D), 2)
+            _tol = 1E-7 * self.norm_p(np.abs(X), 2)
 
-        while (err > _tol) and iter < max_iter:
+        while (err > _tol) and iter < self.max_iter:
             Lk = self.svd_threshold(
-                D - Sk + self.mu_inv * Yk, self.mu_inv)
+                X - Sk + self.mu_inv * Yk, self.mu_inv)
             Sk = self.shrink(
-                D - Lk + (self.mu_inv * Yk), self.mu_inv * self.lmbda)
-            Yk = Yk + self.mu * (D - Lk - Sk)
-            err = self.norm_p(np.abs(D - Lk - Sk), 2)
+                X - Lk + (self.mu_inv * Yk), self.mu_inv * self.lmbda)
+            Yk = Yk + self.mu * (X - Lk - Sk)
+            err = self.norm_p(np.abs(X - Lk - Sk), 2)
             iter += 1
-            if (iter % iter_print) == 0 or iter == 1 or iter > max_iter or err <= _tol:
+            if (iter % self.iter_print) == 0 or iter == 1 or iter > self.max_iter or err <= _tol:
                 print('iteration: {0}, error: {1}'.format(iter, err))
 
         self.L = Lk
         self.S = Sk
-        return Lk, Sk
-
-    def p_outliers(self,p):
         norm=LA.norm(self.S,axis=0)
-        return np.argsort(norm)[::-1][0:p]
+        self.iextreme_values=np.argsort(norm)[::-1][0:self.nb_extreme]
+
+        return self
+
+    def transform(self,X):
+        indices=np.in1d(np.array(range(len(X))),self.iextreme_values)
+        return X[~indices]
 
     def plot_normC(self):
         norm=np.sort(LA.norm(self.S,axis=0))[::-1]
@@ -163,38 +192,59 @@ class R_pca:
         plt.title('Norme 2 de $C_{0}$ pour chaque point',fontsize=15)
         plt.show()
 
-    def plot_fit(self,D, size=None, tol=0.1, axis_on=True):
-
-        n, d = D.shape
-
-        if size:
-            nrows, ncols = size
-        else:
-            sq = np.ceil(np.sqrt(n))
-            nrows = int(sq)
-            ncols = int(sq)
-
-        ymin = np.nanmin(D)
-        ymax = np.nanmax(D)
-        print('ymin: {0}, ymax: {1}'.format(ymin, ymax))
-
-        numplots = np.min([n, nrows * ncols])
-        plt.figure(figsize=size)
-
-        for n in range(numplots):
-            plt.subplot(nrows, ncols, n + 1)
-            plt.ylim((ymin - tol, ymax + tol))
-            plt.plot(self.L[n, :] + self.S[n, :], 'r')
-            plt.plot(self.L[n, :], 'b')
-            if not axis_on:
-                plt.axis('off')
-
-class OutliersKmeans:
+class OutliersKmeans(TransformerMixin):
     ''' v.0.2 OutliersKmeans : Find outliers using Kmeans. Only for semi-supervised outlier detection'''
-    def __init__(self,normaldata,kmeans,parallel=False):
-        self.normaldata=normaldata
+    def __init__(self,kmeans,parallel=False,showbar=False):
         self.kmeans=kmeans
         self.parallel=parallel
+        self.showbar=showbar
+
+    def get_params(self):
+        return {"kmeans": self.kmeans}
+
+    def set_params(self, **parameters):
+        for key,value in parameters.items() :
+            setattr(self,key,parameters[key])
+        return self
+
+
+    def fit(self,X,y=None):
+
+        self.kmeans.fit(X)
+        preds=self.kmeans.predict(X)
+        self.centers=self.kmeans.cluster_centers_
+        self.d=self.find_extreme_point(self.centers,preds,X)
+
+        return self
+
+    def transform(self,X):
+
+        self.iextreme_values=[]
+        if self.showbar == True :
+            widgets = [progressbar.Percentage(), progressbar.Bar()]
+            bar = progressbar.ProgressBar(widgets=widgets, max_value=len(X)).start()
+            j=0
+        if self.parallel==True:
+            p=Pool(4)
+            g=lambda point:not(self.in_any_circle(point,self.centers,self.d))
+            self.iextreme_values=p.map(g, X)
+
+        else:
+            for point in X:
+
+                self.iextreme_values.append(not(self.in_any_circle(point,self.centers,self.d)))
+
+                if self.showbar== True :
+                    self.sleep(0.1)
+                    bar.update(j)
+                    j=j+1
+
+        if self.showbar== True :
+            bar.finish()
+
+        self.iextreme_values=np.array(self.iextreme_values)
+        return X[~self.iextreme_values]
+
 
     def sleep(self,delay):
         time.sleep(delay)
@@ -247,33 +297,3 @@ class OutliersKmeans:
             radius=d[k+1][1]
             incirclek.append(self.in_circle(point,center,radius))
         return np.any(incirclek)
-
-
-    def is_outlier(self,points,showbar=True):
-        self.kmeans.fit(self.normaldata)
-        y=self.kmeans.predict(self.normaldata)
-        centers=self.kmeans.cluster_centers_
-        d=self.find_extreme_point(centers,y,self.normaldata)
-        result=[]
-        if showbar == True :
-            widgets = [progressbar.Percentage(), progressbar.Bar()]
-            bar = progressbar.ProgressBar(widgets=widgets, max_value=len(points)).start()
-            j=0
-        if self.parallel==True:
-            p=Pool(4)
-            g=lambda point:not(self.in_any_circle(point,centers,d))
-            result=p.map(g, points)
-
-        else:
-            for point in points:
-
-                result.append(not(self.in_any_circle(point,centers,d)))
-
-                if showbar== True :
-                    self.sleep(0.1)
-                    bar.update(j)
-                    j=j+1
-
-        if showbar== True :
-            bar.finish()
-        return result
